@@ -1,0 +1,220 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "authorship_tag": "ABX9TyO+5QAiV6cVxVQT1Eu6mP6j"
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "code",
+      "execution_count": 13,
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "saXo6LkbB8ww",
+        "outputId": "4f613685-2f1d-403a-dc8b-a44b882e0b8f"
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Looking in indexes: https://pypi.org/simple, https://us-python.pkg.dev/colab-wheels/public/simple/\n",
+            "Collecting redis\n",
+            "  Downloading redis-4.5.4-py3-none-any.whl (238 kB)\n",
+            "\u001b[2K     \u001b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m \u001b[32m238.9/238.9 kB\u001b[0m \u001b[31m8.1 MB/s\u001b[0m eta \u001b[36m0:00:00\u001b[0m\n",
+            "\u001b[?25hCollecting async-timeout>=4.0.2\n",
+            "  Downloading async_timeout-4.0.2-py3-none-any.whl (5.8 kB)\n",
+            "Installing collected packages: async-timeout, redis\n",
+            "Successfully installed async-timeout-4.0.2 redis-4.5.4\n",
+            "Looking in indexes: https://pypi.org/simple, https://us-python.pkg.dev/colab-wheels/public/simple/\n",
+            "Collecting psycopg2-binary\n",
+            "  Downloading psycopg2_binary-2.9.6-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (3.0 MB)\n",
+            "\u001b[2K     \u001b[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\u001b[0m \u001b[32m3.0/3.0 MB\u001b[0m \u001b[31m32.8 MB/s\u001b[0m eta \u001b[36m0:00:00\u001b[0m\n",
+            "\u001b[?25hInstalling collected packages: psycopg2-binary\n",
+            "Successfully installed psycopg2-binary-2.9.6\n"
+          ]
+        }
+      ],
+      "source": [
+        "#install\n",
+        "!pip install redis\n",
+        "!pip install psycopg2-binary"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#Import Libraries\n",
+        "import pandas as pd\n",
+        "import redis\n",
+        "import psycopg2\n",
+        "import io"
+      ],
+      "metadata": {
+        "id": "XO9EhwLwCQbU"
+      },
+      "execution_count": 14,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Set Redis Cloud \n",
+        "redis_host = 'redis-13623.c246.us-east-1-4.ec2.cloud.redislabs.com'\n",
+        "redis_port = 13623\n",
+        "redis_password = 'NLomzJHfXLVnntKlQmjDAQ8Dqm7JHJTw'"
+      ],
+      "metadata": {
+        "id": "0B-hmjPNCT4K"
+      },
+      "execution_count": 18,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Set PostgreSQL Docker container configuration\n",
+        "pg_host = 'localhost'\n",
+        "pg_port = 5432\n",
+        "pg_user = 'postgres'\n",
+        "pg_password = 'password'\n",
+        "pg_dbname = 'postgres'"
+      ],
+      "metadata": {
+        "id": "dPcaPn_GCXja"
+      },
+      "execution_count": 19,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#Function to extract and cache data\n",
+        "def extract_data():\n",
+        "    # Extract data from CSV file using pandas\n",
+        "    df = pd.read_csv('customer_call_logs.csv')\n",
+        "    cache_string = df.to_csv(index=False)\n",
+        "    # Cache data in Redis for faster retrieval\n",
+        "    r = redis.Redis(host=redis_host, port=redis_port, password=redis_password)\n",
+        "    r.set('mytable', cache_string)"
+      ],
+      "metadata": {
+        "id": "evTNKbfUCa9q"
+      },
+      "execution_count": 24,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#Retrieve and Transform Cached Data\n",
+        "def transform_data():\n",
+        "    # Retrieve data from Redis cache\n",
+        "    retrieved_string = r.get('mytable').decode('utf-8')\n",
+        "    transformed_data = pd.read_csv(io.StringIO(retrieved_string))\n",
+        "\n",
+        "    # Transform data (clean, structure, format)\n",
+        "    transformed_data['call_cost'] = transformed_data['call_cost'].str.replace('$','' ).astype(float64)\n",
+        "    transformed_data['call_date'] = pd.to_datetime(transformed_data['call_date'])\n",
+        "    transformed_data['call_duration'] = pd.to_datetime(transformed_data['call_duration'])\n",
+        "\n",
+        "    return transformed_data"
+      ],
+      "metadata": {
+        "id": "eNedXAcND5hU"
+      },
+      "execution_count": 26,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "#Function to load to Postgress\n",
+        "def load_data():\n",
+        "    # Connect to Postgres database using cursor object\n",
+        "    conn = psycopg2.connect(user=pg_user, password=pg_password, host=pg_host, port=pg_port, database=pg_dbname)\n",
+        "    cur = conn.cursor()    \n",
+        "\n",
+        "    # Create a table to store the data\n",
+        "    cur.execute('CREATE TABLE IF NOT EXISTS customer_call_logs (customer_id INT,call_cost_usd FLOAT,call_destination VARCHAR,call_date TIMESTAMP, call_duration_min FLOAT)')\n",
+        "\n",
+        "\n",
+        "    # Insert the transformed data into the database\n",
+        "    for i, row in transformed_data.iterrows():\n",
+        "        cur.execute(f\"INSERT INTO customer_call_logs (customer_id, call_cost_usd, call_destination, call_date, call_duration_min) VALUES ({row['customer_id']}, {row['call_cost_usd']}, '{row['call_destination']}', '{row['call_date']}', {row['call_duration_min']})\")\n",
+        "\n",
+        "    # Commit the changes\n",
+        "    conn.commit()\n",
+        "\n",
+        "    # Close the cursor and connection\n",
+        "    cur.close()\n",
+        "    conn.close()"
+      ],
+      "metadata": {
+        "id": "8VNJrHAsFIuJ"
+      },
+      "execution_count": 27,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "def data_pipeline():\n",
+        "    # Data pipeline function\n",
+        "    extract_data()\n",
+        "    transformed_data = transform_data()\n",
+        "    load_data(transformed_data)\n",
+        "\n"
+      ],
+      "metadata": {
+        "id": "837Jrzz9HNSN"
+      },
+      "execution_count": 17,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "if __name__ == '__main__':\n",
+        "    # Run the data pipeline function\n",
+        "    data_pipeline()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 346
+        },
+        "id": "PsIJOZlQHNsz",
+        "outputId": "01faf688-3383-4540-caa6-0907f5abc36f"
+      },
+      "execution_count": 28,
+      "outputs": [
+        {
+          "output_type": "error",
+          "ename": "NameError",
+          "evalue": "ignored",
+          "traceback": [
+            "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+            "\u001b[0;31mNameError\u001b[0m                                 Traceback (most recent call last)",
+            "\u001b[0;32m<ipython-input-28-217f0d01377f>\u001b[0m in \u001b[0;36m<cell line: 1>\u001b[0;34m()\u001b[0m\n\u001b[1;32m      1\u001b[0m \u001b[0;32mif\u001b[0m \u001b[0m__name__\u001b[0m \u001b[0;34m==\u001b[0m \u001b[0;34m'__main__'\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      2\u001b[0m     \u001b[0;31m# Run the data pipeline function\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m----> 3\u001b[0;31m     \u001b[0mdata_pipeline\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m",
+            "\u001b[0;32m<ipython-input-17-a2b85d199c6c>\u001b[0m in \u001b[0;36mdata_pipeline\u001b[0;34m()\u001b[0m\n\u001b[1;32m      2\u001b[0m     \u001b[0;31m# Data pipeline function\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      3\u001b[0m     \u001b[0mextract_data\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m----> 4\u001b[0;31m     \u001b[0mtransformed_data\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mtransform_data\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m      5\u001b[0m     \u001b[0mload_data\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mtransformed_data\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      6\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m<ipython-input-26-a4a107914fdc>\u001b[0m in \u001b[0;36mtransform_data\u001b[0;34m()\u001b[0m\n\u001b[1;32m      2\u001b[0m \u001b[0;32mdef\u001b[0m \u001b[0mtransform_data\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      3\u001b[0m     \u001b[0;31m# Retrieve data from Redis cache\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m----> 4\u001b[0;31m     \u001b[0mretrieved_string\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mr\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mget\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m'mytable'\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mdecode\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m'utf-8'\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m      5\u001b[0m     \u001b[0mtransformed_data\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mpd\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mread_csv\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mio\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mStringIO\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mretrieved_string\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      6\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;31mNameError\u001b[0m: name 'r' is not defined"
+          ]
+        }
+      ]
+    }
+  ]
+}
